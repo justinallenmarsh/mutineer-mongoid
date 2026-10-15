@@ -88,7 +88,7 @@ pull request changes, update the ones above it and review the new lines.
 
 ## Releasing (tag-driven — CI publishes, no manual `gem push`)
 
-**Fork override:** `justinallenmarsh/mutineer-gaia` publishes the built gem and
+**Fork override:** `justinallenmarsh/mutineer-mongoid` publishes the built gem and
 checksum as GitHub release attachments. It does not publish to RubyGems. The
 upstream RubyGems runbook below is retained as reference and does not apply to
 this fork. Its release workflow validates stable tags and moves the action's

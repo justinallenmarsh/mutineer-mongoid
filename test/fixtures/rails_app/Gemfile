@@ -14,4 +14,4 @@ gem "sqlite3", ENV.fetch("SQLITE_TEST_VERSION", "~> 1.7")
 
 # Mutineer under test, from this checkout (../../.. is the gem root). require:
 # false mirrors the documented install; the CLI is invoked via `bundle exec`.
-gem "mutineer-gaia", path: "../../..", require: false
+gem "mutineer-mongoid", path: "../../..", require: false

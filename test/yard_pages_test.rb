@@ -29,7 +29,7 @@ class YardPagesTest < Minitest::Test
 
   def test_documentation_uri_points_to_the_fork_readme
     spec = Gem::Specification.load("mutineer.gemspec")
-    assert_equal "https://github.com/justinallenmarsh/mutineer-gaia#readme", spec.metadata.fetch("documentation_uri")
+    assert_equal "https://github.com/justinallenmarsh/mutineer-mongoid#readme", spec.metadata.fetch("documentation_uri")
   end
 
   def test_published_markers_require_root_and_api_nojekyll

@@ -3,15 +3,15 @@
 require_relative "lib/mutineer/version"
 
 Gem::Specification.new do |spec|
-  spec.name          = "mutineer-gaia"
+  spec.name          = "mutineer-mongoid"
   spec.version       = Mutineer::VERSION
   spec.authors       = ["David Teren", "Justin Allen Marsh"]
   spec.email         = ["48605824+justinallenmarsh@users.noreply.github.com"]
-  spec.summary       = "Mutation testing for Ruby and Mongoid/RSpec, based on Mutineer."
+  spec.summary       = "Mutation testing with parallel Mongoid/RSpec support, based on Mutineer."
   spec.description   = "Mutineer mutates your source one change at a time and runs your Minitest or RSpec " \
                        "suite against each mutant to find tests that don't actually test anything. " \
                        "Prism-based, fork-isolated, zero runtime dependencies."
-  spec.homepage      = "https://github.com/justinallenmarsh/mutineer-gaia"
+  spec.homepage      = "https://github.com/justinallenmarsh/mutineer-mongoid"
   spec.license       = "MIT"
 
   spec.required_ruby_version = ">= 3.4"

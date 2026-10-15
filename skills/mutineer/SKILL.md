@@ -3,7 +3,7 @@ name: mutineer
 description: Clean-room mutation testing for Ruby (Prism + stdlib, zero deps). Mutates source one change at a time, runs the suite against each mutant, and reports the mutants tests fail to catch, with a versioned JSON contract and CI/agent gating. Use when checking whether a Ruby test suite would catch a change, finding weak or missing tests, gating CI on a mutation score, or acting on mutineer's JSON report.
 ---
 
-# Mutineer
+# Mutineer Mongoid
 
 Mutation testing for Ruby, built for CI gates and AI coding agents. Line coverage tells
 you which code *ran*; mutation testing tells you whether your tests would *notice if it
@@ -11,9 +11,18 @@ broke*.
 
 ## Install
 
-```sh
-gem install mutineer
+Use this fork in the application's Gemfile in place of `mutineer` or
+`mutineer-gaia` (they share the executable and namespace):
+
+```ruby
+gem "mutineer-mongoid", git: "https://github.com/justinallenmarsh/mutineer-mongoid.git", tag: "v2.0.0", require: false
 ```
+
+Run `bundle install`, then invoke it with `bundle exec mutineer`. The gem is
+published as a GitHub release asset, not on RubyGems. This fork retains upstream
+Minitest/SQLite behavior and adds Mongoid 9/RSpec daemon isolation. For Mongoid,
+use `--rails --daemon --jobs 2`; see the fork README for its supported scope.
+`--matrix` requires serial in-process execution.
 
 ## Run
 
@@ -70,4 +79,4 @@ attempted; it does not require zero errors. Set the threshold to your target.
 - Agent & CI guide: https://davidteren.github.io/mutineer/agentic-coding.html
 - JSON schema: https://davidteren.github.io/mutineer/json-schema.html
 - Ruby API: https://davidteren.github.io/mutineer/api/
-- Source: https://github.com/davidteren/mutineer
+- Source and compatibility: https://github.com/justinallenmarsh/mutineer-mongoid

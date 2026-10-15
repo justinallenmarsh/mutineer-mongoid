@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [2.0.0] - 2026-10-15
+
+- Rename the gem, repository, and action to `mutineer-mongoid`.
+- Document inherited Minitest/SQLite support alongside Mongoid/RSpec support.
+- Preserve the `mutineer` command and the v1.7.0 release for existing users.
+
 ## [1.7.0] - 2026-10-15
 
 - Add Mongoid 9 / RSpec daemon execution with a disposable database per child.

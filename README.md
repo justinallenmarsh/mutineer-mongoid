@@ -1,21 +1,58 @@
-# Mutineer GAIA
+# Mutineer Mongoid
 
-**mutineer-gaia 1.7.0** is a Mongoid/RSpec fork of upstream Mutineer v1.6.0.
+**mutineer-mongoid** is a fork of [Mutineer](https://github.com/davidteren/mutineer)
+adding parallel mutation testing for Rails applications using Mongoid and RSpec.
+It retains upstream Minitest, RSpec, and SQLite functionality; Mongoid support is
+an addition, not a replacement for those backends. This fork is based on v1.6.0.
 It adds Mongoid 9 / RSpec execution with `--rails --daemon --jobs N` and keeps the
 `mutineer` executable and Ruby namespace. The original MIT license and author
 attribution are preserved. Development is maintained by Justin Allen Marsh.
 
-Use this gem in place of `mutineer` (both provide the same executable):
+## Migrating from mutineer-gaia
+
+Version 2.0.0 renames the gem, repository, and action to `mutineer-mongoid`.
+Replace `mutineer-gaia` in your Gemfile, run `bundle install`, and update action
+references to `justinallenmarsh/mutineer-mongoid@v2.0.0`. The command remains
+`bundle exec mutineer`; configuration and behavior are unchanged. The existing
+v1.7.0 tag and its `mutineer-gaia-1.7.0.gem` release asset remain available.
+GAIA is the application where this integration was developed and tested; the
+fork contains no GAIA application code and can be used by other applications.
+
+The new action release uses `v2`; `v1` remains on the original release.
+GitHub does not redirect action calls after a repository rename: update the
+repository path in every workflow, including workflows pinned to v1.7.0 or a SHA.
+
+## Compatibility
+
+| Configuration | Serial execution | Parallel daemon execution |
+| --- | --- | --- |
+| Plain Ruby / Minitest 5 and 6 | Supported | Requires an application boot entry point |
+| Plain Ruby / RSpec 3 | Supported | Mongoid applications only |
+| Rails / ActiveRecord / SQLite / Minitest | Supported | Supported; inherited upstream integration tests |
+| Rails / Mongoid 9 / RSpec 3 | Supported | Supported; Mongoid 9.0 and 9.1 integration tests |
+| Rails / ActiveRecord / SQLite / RSpec | Supported | Not supported |
+| Rails / ActiveRecord / PostgreSQL or MySQL | Serial backend available; adapter not integration-tested here | Not supported |
+
+Ruby 3.4+ and Linux or macOS are required for the Mutineer process. The
+`--test-command` backend can run suites under an older application Ruby.
+`--matrix` works with Minitest and RSpec on the serial in-process backend;
+it cannot be combined with `--daemon` or `--test-command`.
+The supported Mongoid isolation scope and other limitations are listed below.
+
+## Install the fork
+
+Use this gem in place of `mutineer` or `mutineer-gaia`; install only one of them
+because they provide the same `mutineer` executable and Ruby namespace:
 
 ```ruby
-gem "mutineer-gaia", git: "https://github.com/justinallenmarsh/mutineer-gaia.git", tag: "v1.7.0", require: false
+gem "mutineer-mongoid", git: "https://github.com/justinallenmarsh/mutineer-mongoid.git", tag: "v2.0.0", require: false
 ```
 
 ```sh
 bundle exec mutineer run app/models/example.rb --rails --daemon --jobs 2
 ```
 
-The gem is available as an attachment on the [GitHub release](https://github.com/justinallenmarsh/mutineer-gaia/releases/tag/v1.7.0).
+The gem is available as an attachment on the [GitHub release](https://github.com/justinallenmarsh/mutineer-mongoid/releases/tag/v2.0.0).
 It has not been published to RubyGems. The GitHub action builds and installs the
 source at the action ref, so it needs no separate gem publication:
 
@@ -25,7 +62,7 @@ source at the action ref, so it needs no separate gem publication:
   with:
     ruby-version: "3.4"
     bundler-cache: true
-- uses: justinallenmarsh/mutineer-gaia@v1.7.0
+- uses: justinallenmarsh/mutineer-mongoid@v2.0.0
   with:
     sources: app/models/example.rb
     test: spec/models/example_spec.rb
@@ -77,9 +114,10 @@ the gem still has zero runtime dependencies.
 
 ---
 
-[![Gem Version](https://img.shields.io/gem/v/mutineer?logo=rubygems&color=e23b3b)](https://rubygems.org/gems/mutineer)
-[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-Mutineer%20Ruby-2da44e?logo=githubactions&logoColor=white)](https://github.com/marketplace/actions/mutineer-ruby)
-[![Socket](https://img.shields.io/badge/Socket-security%20report-0a66c2?logo=socket&logoColor=white)](https://socket.dev/rubygems/package/mutineer)
+## General Mutineer usage
+
+The following reference retains upstream behavior except where the compatibility
+table and Mongoid notes above describe this fork's additions.
 
 A clean-room mutation-testing tool for Ruby. Mutineer mutates your source one
 change at a time, runs your test suite (Minitest or RSpec) against each mutant, and reports the
@@ -103,18 +141,6 @@ for how the two tools differ.
   1 to 3 s, 3 to 7 s, and so on); files in one step run in path order.
 
 📖 **[mutineer.github.io →](https://davidteren.github.io/mutineer/)** — overview, operators, and usage.
-
-## Install
-
-```sh
-gem install mutineer
-```
-
-Or in a Gemfile:
-
-```ruby
-gem "mutineer", group: :test
-```
 
 ## Usage
 
@@ -213,7 +239,7 @@ to get a verdict.
 Add Mutineer to your Gemfile's test group:
 
 ```ruby
-gem "mutineer", group: :test, require: false
+gem "mutineer-mongoid", git: "https://github.com/justinallenmarsh/mutineer-mongoid.git", tag: "v2.0.0", group: :test, require: false
 ```
 
 ### Faster, parallel-safe Rails (the `--daemon` backend)
@@ -246,7 +272,9 @@ RAILS_ENV=test bundle exec mutineer run \
 - **One backend at a time** — `--daemon` can't be combined with `--test-command`
   (choose one), and it needs an app to boot (`--rails` or `--boot`).
 
-Status: **SQLite** only (hermetic, CI-proven). Per-worker provisioning for
+ActiveRecord daemon status: **SQLite with Minitest** (hermetic, CI-proven).
+This fork also supports Mongoid 9 with RSpec as described above.
+Per-worker provisioning for
 **Postgres** and other adapters is not supported: on those, `--daemon` scores
 every mutant as `error`. Use `--daemon` with a SQLite test database, or drop
 `--daemon` to run serially on other adapters.
@@ -368,7 +396,7 @@ does.
 
 **Migrating from ids without the file path.** Before 1.3, ids did not include
 the file path, so two files could share an id (#126). Old-format ids keep
-working until 2.0, with a warning:
+working in this fork, with a migration warning:
 
 - **`ignore:`** An old entry still suppresses its mutants. The run prints the
   new ids for each old entry, each with its file and method. When it names one
@@ -494,7 +522,7 @@ This repo ships a composite action (`action.yml`) that wraps the CLI for CI:
 - uses: actions/checkout@v4
 - uses: ruby/setup-ruby@v1
   with: { ruby-version: "3.4", bundler-cache: true }
-- uses: davidteren/mutineer@v1
+- uses: justinallenmarsh/mutineer-mongoid@v2
   with:
     sources: app/
     baseline: .mutineer/baseline.json
@@ -533,10 +561,10 @@ structured exit codes, and diff-scoped runs. See:
   [source](https://davidteren.github.io/mutineer/json-schema.md)
 - **Ruby API (YARD)** — class reference for the shipped gem:
   [https://davidteren.github.io/mutineer/api/](https://davidteren.github.io/mutineer/api/)
-- **Agent skill** ([`skills/mutineer/SKILL.md`](https://github.com/davidteren/mutineer/blob/main/skills/mutineer/SKILL.md)): a short
+- **Agent skill** ([`skills/mutineer/SKILL.md`](https://github.com/justinallenmarsh/mutineer-mongoid/blob/main/skills/mutineer/SKILL.md)): a short
   card for coding agents with install, the agent loop, and exit codes. Install it
-  with `gh skill install davidteren/mutineer mutineer` or
-  `npx skills add davidteren/mutineer --skill mutineer`.
+  with `gh skill install justinallenmarsh/mutineer-mongoid mutineer` or
+  `npx skills add justinallenmarsh/mutineer-mongoid --skill mutineer`.
 
 ## Configuration
 
