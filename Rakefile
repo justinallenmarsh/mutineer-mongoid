@@ -18,11 +18,18 @@ Rake::TestTask.new(:test) do |t|
   # Fixtures include *_test.rb files that are loaded into forked children by
   # the runner — they are not part of Mutineer's own suite. The daemon tests need
   # the Rails fixture bundle, so they run via `test:daemon` (rails-integration job).
-  t.test_files = FileList["test/**/*_test.rb"].exclude("test/fixtures/**/*", *DAEMON_TESTS)
+  t.test_files = FileList["test/**/*_test.rb"].exclude("test/fixtures/**/*", "test/mongoid_integration_test.rb", *DAEMON_TESTS)
   t.warning = false
 end
 
 namespace :test do
+  desc "Mongoid/RSpec integration tests (requires MongoDB and the fixture bundle)"
+  Rake::TestTask.new(:mongoid) do |t|
+    t.libs << "lib" << "test"
+    t.test_files = ["test/mongoid_integration_test.rb"]
+    t.warning = false
+  end
+
   desc "Daemon integration tests (require the Rails fixture app bundle installed)"
   Rake::TestTask.new(:daemon) do |t|
     t.libs << "lib" << "test"

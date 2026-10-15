@@ -1,8 +1,8 @@
-name: Mutineer Ruby
+name: Mutineer GAIA
 description: >-
-  Mutation-test your Ruby suite in CI; fail the build on new surviving mutants
-  or a mutation-score drop versus a baseline.
-author: David Teren
+  Mutation-test Ruby and Mongoid/RSpec suites with isolated MongoDB databases,
+  reports, and mutation-score gates.
+author: Justin Allen Marsh; based on Mutineer by David Teren
 branding:
   icon: git-merge
   color: red
@@ -71,6 +71,10 @@ inputs:
       Enable a daemon with extra-args: '--daemon' or daemon: true in .mutineer.yml.
     required: false
     default: "false"
+  daemon:
+    description: "Use the daemon backend with isolated Mongoid databases (requires rails: true or a --boot entry point)."
+    required: false
+    default: "false"
   format:
     description: >-
       Report format: human, json or html (default: json so the report is
@@ -103,12 +107,13 @@ inputs:
   use-bundler:
     description: >-
       Run via `bundle exec mutineer` (true) instead of a standalone
-      `gem install mutineer` (false). Use true when mutineer is in the
-      project's Gemfile (required for --rails, which boots the app's bundle).
+      installing this action's bundled mutineer-gaia source (false). Use true
+      when mutineer-gaia is in the project's Gemfile. The Mongoid daemon can
+      boot a separate application bundle without adding the gem to it.
     required: false
     default: "false"
   version:
-    description: "Gem version to install when use-bundler is false (default: latest)."
+    description: "Optional exact version check against the bundled gem when use-bundler is false; pin the action ref to select its source."
     required: false
     default: ""
 
@@ -126,17 +131,28 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Install mutineer
+    - name: Install bundled mutineer-gaia
+      id: install
       if: ${{ inputs.use-bundler != 'true' }}
       shell: bash
       env:
         VERSION: ${{ inputs.version }}
+        ACTION_PATH: ${{ github.action_path }}
       run: |
-        if [ -n "$VERSION" ]; then
-          gem install mutineer -v "$VERSION" --no-document
-        else
-          gem install mutineer --no-document
+        set -euo pipefail
+        bundled_version="$(ruby -r "$ACTION_PATH/lib/mutineer/version" -e 'print Mutineer::VERSION')"
+        if [ -n "$VERSION" ] && [ "$VERSION" != "$bundled_version" ]; then
+          echo "::error::The requested gem version does not match this action's bundled gem; select the matching action ref."
+          exit 2
         fi
+        package_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/mutineer-package-XXXXXX")"
+        (
+          cd "$ACTION_PATH"
+          gem build mutineer.gemspec --output "$package_dir/mutineer-gaia.gem"
+        )
+        gem install "$package_dir/mutineer-gaia.gem" --local --no-document --install-dir "$package_dir/gems"
+        executable="$package_dir/gems/gems/mutineer-gaia-$bundled_version/bin/mutineer"
+        printf 'executable=%s\n' "$executable" >> "$GITHUB_OUTPUT"
 
     - name: Run mutineer
       id: run
@@ -156,10 +172,12 @@ runs:
         STRATEGY: ${{ inputs.strategy }}
         JOBS: ${{ inputs.jobs }}
         RAILS: ${{ inputs.rails }}
+        DAEMON: ${{ inputs.daemon }}
         FORMAT: ${{ inputs.format }}
         OUTPUT: ${{ inputs.output }}
         EXTRA_ARGS: ${{ inputs.extra-args }}
         USE_BUNDLER: ${{ inputs.use-bundler }}
+        MUTINEER_EXECUTABLE: ${{ steps.install.outputs.executable }}
         WORKING_DIRECTORY: ${{ inputs.working-directory }}
       run: |
         set -o pipefail
@@ -325,6 +343,7 @@ runs:
         [ -n "$STRATEGY" ]         && args+=(--strategy "$STRATEGY")
         [ -n "$JOBS" ]             && args+=(--jobs "$JOBS")
         [ "$RAILS" = "true" ]      && args+=(--rails)
+        [ "${DAEMON:-false}" = "true" ] && args+=(--daemon)
         [ -n "$FORMAT" ]           && args+=(--format "$FORMAT")
         [ -n "$TMP_REPORT" ]       && args+=(--output "$TMP_REPORT")
         # shellcheck disable=SC2206
@@ -349,9 +368,13 @@ runs:
         done
 
         if [ "$USE_BUNDLER" = "true" ]; then
+          bundle exec ruby -e 'abort "This action requires mutineer-gaia in the application bundle" unless Gem.loaded_specs.key?("mutineer-gaia")'
           runner=(bundle exec mutineer)
+        elif [ -n "${MUTINEER_EXECUTABLE:-}" ]; then
+          runner=(ruby "$MUTINEER_EXECUTABLE")
         else
-          runner=(mutineer)
+          echo "::error::The bundled mutineer-gaia executable was not installed."
+          exit 2
         fi
 
         # The action's since plumbing (--no-since; scoped-vs-baseline

@@ -242,6 +242,20 @@ class DaemonClientEnvTest < Minitest::Test
     path
   end
 
+  def test_standalone_invocation_preserves_the_callers_application_gem_paths
+    Dir.mktmpdir("daemon-standalone-env") do |root|
+      updates = ENV.keys.grep(/^BUNDLER_ORIG_/).to_h { |key| [key, nil] }
+      updates.merge!("GEM_HOME" => "/app/gems", "GEM_PATH" => "/app/gems:/shared/gems",
+                     "BUNDLE_PATH" => "/app/vendor/bundle")
+      with_env(updates) do
+        observed = observe(client_for(root), root)
+        assert_equal "/app/gems", observed["GEM_HOME"]
+        assert_equal "/app/gems:/shared/gems", observed["GEM_PATH"]
+        assert_equal "/app/vendor/bundle", observed["BUNDLE_PATH"]
+      end
+    end
+  end
+
   # Current values are the tool's. BUNDLER_ORIG_* is what the app had before
   # the tool's Bundler activated. A gem home, BUNDLE_PATH, or BUNDLE_WITHOUT
   # is kept only when that saved key exists. RUBYOPT and RUBYLIB are always

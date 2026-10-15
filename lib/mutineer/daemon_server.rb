@@ -137,7 +137,10 @@ module Mutineer
         # The --require files, after the boot as in-process (Runner.execute), so
         # the coverage peek sees what they ran at load.
         Array(cfg["require_paths"]).each { |f| require File.expand_path(f) }
-        setup_worker_db(cfg) if cfg["rails"]
+        setup_worker_db(cfg) if cfg["rails"] || defined?(Mongoid::Clients)
+        if @framework == "rspec" && !mongoid_worker_db
+          raise "RSpec daemon execution currently requires Mongoid"
+        end
       rescue Exception => e # rubocop:disable Lint/RescueException
         # Boot failed (bad boot path, app error). Tell the client and exit so it
         # can surface a clean error rather than hang on the handshake.
@@ -147,13 +150,17 @@ module Mutineer
       end
 
       # Load the per-worker DB adapter app-side (sibling gem file, by relative path
-      # so it bypasses the app bundle, like this daemon itself). No-op unless the
-      # app has ActiveRecord. Records the adapter + schema path so each fork can
-      # route to its own database. SQLite-only this pass; a non-SQLite config
-      # raises in the fork and reads as `error`, never a mis-routed verdict.
+      # so it bypasses the app bundle, like this daemon itself). Mongoid gets
+      # disposable child databases. ActiveRecord retains its SQLite slot adapter.
+      # A Mongoid setup failure aborts boot before any specs can run.
       def setup_worker_db(cfg)
         require_relative "rails_worker_db"
-        @worker_db = RailsWorkerDb.available? ? RailsWorkerDb : nil
+        require_relative "mongoid_worker_db"
+        @worker_db = if MongoidWorkerDb.available?
+                       MongoidWorkerDb.new
+                     elsif RailsWorkerDb.available?
+                       RailsWorkerDb
+                     end
         schema = cfg["schema"] && File.expand_path(cfg["schema"])
         @schema_path = schema if schema && File.exist?(schema)
         # Each worker slot is seeded once, on first use (not every mutant fork).
@@ -177,7 +184,10 @@ module Mutineer
           boot_path: @cfg["boot"], require_paths: Array(@cfg["require_paths"]),
           framework: @framework, cache_dir: @cfg["cache_dir"] || File.join(root, ".mutineer"),
           capture_timeout: @cfg["capture_timeout"] || CoverageMap::DEFAULT_CAPTURE_TIMEOUT
-        ).build_via_fork(after_fork: coverage_after_fork)
+        ).build_via_fork(after_fork: coverage_after_fork,
+                         before_fork: mongoid_worker_db&.method(:before_fork),
+                         cleanup: mongoid_worker_db&.method(:cleanup),
+                         cache_key: mongoid_worker_db&.coverage_cache_key)
         # Nothing reads Coverage after the map, so a mutant forked from this
         # daemon does not pay for it (#228).
         Coverage.suspend if Coverage.running?
@@ -217,6 +227,7 @@ module Mutineer
         # Seed the slot's DB until the first killed/survived fork for this worker slot.
         first_use = @worker_db && !@slot_ready[worker]
         daemon = Process.pid
+        mongoid_worker_db&.before_fork
         pid = fork do
           # New process group so a per-fork timeout can SIGKILL the whole subtree,
           # and silence the child's stdout so test output stays out of the diagnostics.
@@ -246,6 +257,15 @@ module Mutineer
         # so it cannot outlive the run or trip Zeitwerk on a later fork.
         sweep_temps if verdict == "timeout"
         { "id" => req["id"], "verdict" => verdict }
+      ensure
+        mongoid_worker_db&.cleanup(pid) if pid
+      end
+
+      # Mongoid owns disposable child databases; ActiveRecord keeps its existing
+      # slot lifecycle. Do not invoke Mongoid cleanup on an ActiveRecord adapter.
+      # @return [MongoidWorkerDb, nil]
+      def mongoid_worker_db
+        @worker_db if defined?(MongoidWorkerDb) && @worker_db.is_a?(MongoidWorkerDb)
       end
 
       # Remove orphaned mutant tempfiles from the source dirs (parent-side; the
@@ -313,8 +333,12 @@ module Mutineer
       end
 
       # Load the covering test files and run them; 0 = all passed (survived),
-      # 1 = a failure/error (killed). Minitest only; rspec is not yet on this path.
+      # 1 = a failure/error (killed). RSpec uses the existing fork-safe runner.
       def run_tests(tests)
+        if @framework == "rspec"
+          require_relative "mongoid_failures"
+          return MongoidFailures.run(tests)
+        end
         raise "unsupported framework #{@framework.inspect}" unless @framework == "minitest"
 
         require "minitest"

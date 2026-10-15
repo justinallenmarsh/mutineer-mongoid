@@ -319,7 +319,8 @@ module Mutineer
 
     # --daemon selects the persistent-daemon backend (boot once, fork per mutant,
     # per-worker DB isolation on SQLite). Usage errors exit 2: cannot combine with
-    # --test-command; requires --rails or --boot; minitest only; reload strategy only
+    # --test-command; requires --rails or --boot; reload strategy only. RSpec
+    # requires the Mongoid adapter, checked after the application boots.
     # (redefine needs a shared VM surgical path the daemon does not ship).
     #
     # @api private
@@ -332,11 +333,6 @@ module Mutineer
       end
       unless config.rails || config.boot
         warn "mutineer: --daemon needs an app to boot; add --rails (or --boot FILE)"
-        exit 2
-      end
-      if config.framework == "rspec"
-        warn "mutineer: --daemon supports only --framework minitest " \
-             "(rspec is not implemented on the daemon path yet)"
         exit 2
       end
       warn_unused_settings(config, "--daemon", %i[timeout])

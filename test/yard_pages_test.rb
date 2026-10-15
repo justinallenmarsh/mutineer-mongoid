@@ -27,9 +27,9 @@ class YardPagesTest < Minitest::Test
     assert_includes DocsContract.json_schema_html, 'href="api/"', "json-schema.html should link to api/"
   end
 
-  def test_documentation_uri_stays_the_pages_root
-    spec = File.read("mutineer.gemspec")
-    assert_includes spec, '"documentation_uri" => "https://davidteren.github.io/mutineer/"'
+  def test_documentation_uri_points_to_the_fork_readme
+    spec = Gem::Specification.load("mutineer.gemspec")
+    assert_equal "https://github.com/justinallenmarsh/mutineer-gaia#readme", spec.metadata.fetch("documentation_uri")
   end
 
   def test_published_markers_require_root_and_api_nojekyll

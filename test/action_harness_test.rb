@@ -26,9 +26,10 @@ class ActionHarnessTest < Minitest::Test
       "case5" => 1, "case6" => 2, "case7" => 1, "case8" => 2, "case8b" => 2, "case9" => 0,
       "case10" => 1, "case11" => 2, "case11b" => 2, "case12" => 1,
       "case13" => 2, "case14" => 2, "case14b" => 2, "case15" => 1,
-      "case16" => 2, "case17" => 2 }.each do |c, code|
+      "case16" => 2, "case17" => 2, "case18" => 1 }.each do |c, code|
       assert_includes out, "#{c}: exit=#{code}", "#{c} exit code drifted:\n#{out}"
     end
+    assert_includes out, "OK: Mongoid daemon options forwarded"
     assert_includes out, "OK: abbreviation rejected"
     assert_includes out, "OK: caller output delivered"
     assert_includes out, "OK: report output names caller path"

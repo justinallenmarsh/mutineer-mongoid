@@ -20,3 +20,7 @@ doc/
 /docs/llms-full.txt
 /docs/json-schema.html
 /docs/sitemap.xml
+
+# Local verification reports and fixture bundles.
+/tmp-*.json
+/test/fixtures/*/Gemfile.lock

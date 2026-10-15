@@ -35,6 +35,7 @@ concurrency:
 
 jobs:
   release-pr:
+    if: github.repository == 'davidteren/mutineer'
     name: open a release PR if one is due
     runs-on: ubuntu-latest
     steps:

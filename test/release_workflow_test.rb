@@ -212,11 +212,19 @@ class ReleaseWorkflowTest < Minitest::Test
     steps = YAML.load_file(RELEASE_WORKFLOW).dig("jobs", "release", "steps").map { |s| "#{s["uses"]}#{s["run"]}" }
     guard = steps.index { |s| s.include?(STABLE_TAG_START) }
     refute_nil guard, "release.yml needs #{STABLE_TAG_START}"
-    ["configure-rubygems-credentials", "gem push", "gh release create", "git push -f"].each do |marker|
+    ["gem build", "gh release create", "git push "].each do |marker|
       step = steps.index { |s| s.include?(marker) }
       refute_nil step, marker
       assert_operator guard, :<, step, "the stable-tag guard must run before #{marker}"
     end
+  end
+
+  def test_release_attaches_the_gem_and_checksum_without_publishing_to_rubygems
+    workflow = File.read(RELEASE_WORKFLOW)
+    assert_includes workflow, "sha256sum mutineer-gaia-*.gem > SHA256SUMS"
+    assert_includes workflow, 'gh release create "$GITHUB_REF_NAME" mutineer-gaia-*.gem SHA256SUMS'
+    refute_includes workflow, "gem push"
+    refute_includes workflow, "configure-rubygems-credentials"
   end
 
   private

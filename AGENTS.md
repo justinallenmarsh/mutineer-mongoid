@@ -88,6 +88,12 @@ pull request changes, update the ones above it and review the new lines.
 
 ## Releasing (tag-driven — CI publishes, no manual `gem push`)
 
+**Fork override:** `justinallenmarsh/mutineer-gaia` publishes the built gem and
+checksum as GitHub release attachments. It does not publish to RubyGems. The
+upstream RubyGems runbook below is retained as reference and does not apply to
+this fork. Its release workflow validates stable tags and moves the action's
+major tag after creating the GitHub release.
+
 Semver: **new feature → minor bump, fix → patch.** A behavior change to the
 GitHub Action's defaults is a **major** bump: consumers pin `@v<major>`, and a
 default flip must never reach them without opting in.

@@ -18,7 +18,7 @@ jobs:
       matrix:
         # Mutineer is fork-based (Linux + macOS); Prism ships with Ruby >= 3.4.
         os: [ubuntu-latest, macos-latest]
-        ruby: ["3.4"]
+        ruby: ["3.4", "4.0"]
     steps:
       - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
@@ -113,3 +113,72 @@ jobs:
       - name: Check website in Chromium
         working-directory: test/browser
         run: npm test
+
+  mongoid-integration:
+    name: Mongoid ${{ matrix.mongoid }} / RSpec
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        mongoid: ["~> 9.0.0", "~> 9.1.0"]
+    services:
+      mongodb:
+        image: mongo:8.2
+        ports: ["27017:27017"]
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ping:1})'"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      MONGOID_VERSION: ${{ matrix.mongoid }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+      - name: Install Mongoid fixture bundle
+        run: BUNDLE_GEMFILE=test/fixtures/mongoid_app/Gemfile bundle install
+      - name: Check database isolation and report parity
+        run: bundle exec rake test:mongoid
+
+  action-mongoid:
+    name: Bundled GitHub action / Mongoid
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:8.2
+        env:
+          GLIBC_TUNABLES: glibc.pthread.rseq=0
+        ports: ["27017:27017"]
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ping:1})'"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      MUTINEER_MONGO_DATABASE: mutineer_action_fixture
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+      - name: Install fixture bundle and seed MongoDB
+        working-directory: test/fixtures/mongoid_app
+        run: |
+          bundle install
+          bundle exec ruby -r ./boot -e 'Invoice.create_indexes; Invoice.create!(reference: "seed", amount: 7)'
+      - name: Run the bundled action with two workers
+        id: mutation
+        uses: ./
+        with:
+          sources: invoice.rb
+          test: spec/invoice_spec.rb
+          working-directory: test/fixtures/mongoid_app
+          framework: rspec
+          rails: "true"
+          daemon: "true"
+          jobs: "2"
+          since: none
+          extra-args: --boot boot.rb
+          output: mutation-report.json
+      - name: Verify the action produced a trustworthy report
+        working-directory: test/fixtures/mongoid_app
+        run: |
+          jq -e '.summary | .killed > 0 and .survived > 0 and .errored == 0 and .timeout == 0 and .uncapturable == 0' mutation-report.json

@@ -1,4 +1,81 @@
-# Mutineer
+# Mutineer GAIA
+
+**mutineer-gaia 1.7.0** is a Mongoid/RSpec fork of upstream Mutineer v1.6.0.
+It adds Mongoid 9 / RSpec execution with `--rails --daemon --jobs N` and keeps the
+`mutineer` executable and Ruby namespace. The original MIT license and author
+attribution are preserved. Development is maintained by Justin Allen Marsh.
+
+Use this gem in place of `mutineer` (both provide the same executable):
+
+```ruby
+gem "mutineer-gaia", git: "https://github.com/justinallenmarsh/mutineer-gaia.git", tag: "v1.7.0", require: false
+```
+
+```sh
+bundle exec mutineer run app/models/example.rb --rails --daemon --jobs 2
+```
+
+The gem is available as an attachment on the [GitHub release](https://github.com/justinallenmarsh/mutineer-gaia/releases/tag/v1.7.0).
+It has not been published to RubyGems. The GitHub action builds and installs the
+source at the action ref, so it needs no separate gem publication:
+
+```yaml
+- uses: actions/checkout@v7
+- uses: ruby/setup-ruby@v1
+  with:
+    ruby-version: "3.4"
+    bundler-cache: true
+- uses: justinallenmarsh/mutineer-gaia@v1.7.0
+  with:
+    sources: app/models/example.rb
+    test: spec/models/example_spec.rb
+    framework: rspec
+    rails: "true"
+    daemon: "true"
+    jobs: "2"
+    output: mutation-report.json
+```
+
+Start MongoDB and configure the application's test client before this step.
+For example, a GitHub-hosted Linux job can provide `mongo:8.2` through a service
+container exposing port 27017. Use `use-bundler: "true"` when the application's
+Gemfile includes this fork. The default standalone mode also supports a daemon
+booting a separate application bundle. Pin an immutable commit SHA instead of a
+tag when your dependency policy requires it.
+
+Mongoid daemon runs capture the boot-time test database's documents, collection
+options, and indexes in memory. Each coverage check and mutant gets a fresh,
+randomly named database. The parent drops it after reaping the child, including
+on timeout or error. The source database is read only. Coverage caches include the seed snapshot.
+MongoDB connection failures inside examples or suite hooks are reported as errors,
+not caught mutations. Mongoid clients disconnect
+before forks and reconnect in children. Credentials must allow creation and
+deletion of the disposable databases. A hard kill of the parent can leave one
+behind; these have names matching `mutineer_<8 hex source hash>_<16 hex run token>_<child pid>`.
+
+Supported scope: one default Mongoid client, ordinary collections, and
+`RAILS_ENV=test`. Multiple clients, views, time-series collections, and mixed
+ActiveRecord/Mongoid applications fail explicitly. Raw `Mongo::Client` instances
+outside Mongoid, cached database handles created during boot, and specs that
+reconfigure Mongoid are outside this isolation contract. Redis, object storage,
+and other external resources keep the application's existing isolation rules.
+`--matrix` remains available on the serial in-process backend. Daemon execution
+still reloads whole source files, with upstream's callback and concern limitations.
+
+To check the MongoDB integration independently of an application:
+
+```sh
+BUNDLE_GEMFILE=test/fixtures/mongoid_app/Gemfile bundle install
+# MongoDB must be running; set MUTINEER_MONGO_URL if it requires credentials.
+bundle exec rake test:mongoid
+```
+
+The integration tests check concurrent writes, seed data, unique indexes, cleanup
+on timeout and error, source-data preservation, and serial/parallel report parity
+with both killed and surviving mutations. Mongoid is only in the fixture bundle;
+the gem still has zero runtime dependencies.
+
+---
 
 [![Gem Version](https://img.shields.io/gem/v/mutineer?logo=rubygems&color=e23b3b)](https://rubygems.org/gems/mutineer)
 [![GitHub Marketplace](https://img.shields.io/badge/Marketplace-Mutineer%20Ruby-2da44e?logo=githubactions&logoColor=white)](https://github.com/marketplace/actions/mutineer-ruby)

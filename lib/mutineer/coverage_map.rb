@@ -127,7 +127,14 @@ module Mutineer
     #
     # The lines that ran during boot are read here on every run, cache or not:
     # the boot runs every time, and no test is credited with those lines.
-    def build_via_fork(after_fork: nil)
+    # @param after_fork [Proc, nil] child-side database routing.
+    # @param before_fork [Proc, nil] parent-side socket disconnection.
+    # @param cleanup [Proc, nil] parent-side cleanup, passed the reaped child pid.
+    # @param cache_key [String, nil] additional state affecting coverage (MongoDB snapshot).
+    def build_via_fork(after_fork: nil, before_fork: nil, cleanup: nil, cache_key: nil)
+      @cache_key = cache_key
+      @before_fork = before_fork
+      @fork_cleanup = cleanup
       warn_external_sources
       # Matched by real path in #record_load: a Coverage key is the path as
       # required, which can differ from the configured one (/var, /private/var).
@@ -367,6 +374,7 @@ module Mutineer
     # @return [Mutineer::CoverageMap] self.
     def cached_or(after_fork: nil)
       @digest = compute_digest
+      @digest = Digest::SHA256.hexdigest("#{@digest}\0#{@cache_key}") if @cache_key
       cached = read_cache
       # A cache from before load methods (#209) or test timings (#203) were
       # saved rebuilds once. Boot mode reads its load lines and methods from
@@ -485,6 +493,7 @@ module Mutineer
       rd.binmode
       wr.binmode
       parent = Process.pid
+      @before_fork&.call
       pid = fork do
         rd.close
         Process.setpgid(0, 0) rescue nil # rubocop:disable Style/RescueModifier
@@ -535,6 +544,7 @@ module Mutineer
     rescue StandardError => e
       "parent could not read capture result: #{e.class}: #{e.message}"
     ensure
+      @fork_cleanup&.call(pid) if pid
       [rd, wr].compact.each { |io| io.close unless io.closed? }
     end
 
@@ -812,6 +822,7 @@ module Mutineer
       rd.binmode
       wr.binmode
       parent = Process.pid
+      @before_fork&.call
       pid = fork do
         rd.close
         Process.setpgid(0, 0) rescue nil # rubocop:disable Style/RescueModifier
@@ -834,6 +845,7 @@ module Mutineer
     rescue StandardError
       false
     ensure
+      @fork_cleanup&.call(pid) if pid
       [rd, wr].compact.each { |io| io.close unless io.closed? }
     end
 

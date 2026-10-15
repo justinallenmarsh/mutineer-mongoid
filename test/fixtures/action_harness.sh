@@ -19,15 +19,18 @@ sed 's/"scoped":false/"scoped":false,"id_format":2,"legacy_id_matches":{"ignore"
 
 mkdir -p "$SCRATCH/bin"
 cat > "$SCRATCH/bin/mutineer" <<STUB
-#!/usr/bin/env bash
-# The action's version-floor check asks for --version before running.
-if [ "\${1:-}" = "--version" ]; then echo "1.0.0"; exit 0; fi
-echo "STUB-ARGS: \$*" >> "$SCRATCH/stub-args.txt"
-out=""
-prev=""
-for a in "\$@"; do [ "\$prev" = "--output" ] && out="\$a"; prev="\$a"; done
-if [ "\${STUB_WRITE:-1}" = "1" ] && [ -n "\$out" ]; then cp "\${STUB_REPORT:-$SCRATCH/report.json}" "\$out"; fi
-exit "\${STUB_EXIT:-1}"
+#!/usr/bin/env ruby
+if ARGV == ["--version"]
+  puts "1.0.0"
+  exit 0
+end
+File.open("$SCRATCH/stub-args.txt", "a") { |file| file.puts("STUB-ARGS: #{ARGV.join(' ')}") }
+position = ARGV.index("--output")
+output = ARGV[position + 1] if position
+if ENV.fetch("STUB_WRITE", "1") == "1" && output
+  File.write(output, File.read(ENV.fetch("STUB_REPORT", "$SCRATCH/report.json")))
+end
+exit ENV.fetch("STUB_EXIT", "1").to_i
 STUB
 chmod +x "$SCRATCH/bin/mutineer"
 export PATH="$SCRATCH/bin:$PATH"
@@ -53,6 +56,7 @@ run_step() { # name, then env overrides as KEY=VAL...
     SOURCES="lib/calc.rb" TESTS="" THRESHOLD="90" BASELINE="" BASELINE_EPSILON="" \
     OPERATORS="" FRAMEWORK="" STRATEGY="" JOBS="" RAILS="false" FORMAT="json" \
     OUTPUT="" EXTRA_ARGS="" USE_BUNDLER="false" SINCE="" WORKING_DIRECTORY="." \
+    MUTINEER_EXECUTABLE="$SCRATCH/bin/mutineer" \
     RUNNER_TEMP="$out" GITHUB_OUTPUT="$out/gh-output.txt" \
     GITHUB_STEP_SUMMARY="$out/summary.md" GITHUB_BASE_REF="" GITHUB_EVENT_NAME="" \
     STUB_EXIT=1 STUB_WRITE=1 \
@@ -204,3 +208,14 @@ after=$(cksum "$weird")
 [ "$before" = "$after" ] && echo "  OK: escaped-path baseline kept" || echo "  FAIL: escaped-path baseline was replaced"
 [ -s "$SCRATCH/stub-args.txt" ] && echo "  FAIL: mutineer ran on an escaped path" || echo "  OK: escaped path rejected before running"
 grep '::error::' "$SCRATCH/case17/stdout.txt"
+
+echo; echo "== 18: Mongoid daemon inputs reach the runner =="
+run_step case18 RAILS=true DAEMON=true JOBS=2 FRAMEWORK=rspec
+if grep -q -- '--framework rspec' "$SCRATCH/stub-args.txt" && \
+   grep -q -- '--jobs 2' "$SCRATCH/stub-args.txt" && \
+   grep -q -- '--rails' "$SCRATCH/stub-args.txt" && \
+   grep -q -- '--daemon' "$SCRATCH/stub-args.txt"; then
+  echo "  OK: Mongoid daemon options forwarded"
+else
+  echo "  FAIL: Mongoid daemon options missing"
+fi

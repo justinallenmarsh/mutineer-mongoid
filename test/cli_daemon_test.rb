@@ -43,31 +43,10 @@ class CliDaemonTest < Minitest::Test
     refute_equal 0, status.exitstatus
   end
 
-  def test_daemon_with_rspec_is_a_usage_error
-    _, err, status = mutineer("run", "x.rb", "--test", "t_spec.rb", "--daemon", "--rails",
-                              "--framework", "rspec")
-    assert_equal 2, status.exitstatus
-    assert_includes err, "supports only --framework minitest"
-  end
-
-  # Framework re-detect after autopair: auto-inferred *_spec.rb tests must not
-  # bypass the daemon RSpec guard when the user never passed --framework.
-  def test_daemon_rejects_auto_detected_rspec_after_autopair
-    require "fileutils"
-    Dir.mktmpdir("mutineer-rspec-auto") do |dir|
-      FileUtils.mkdir_p(File.join(dir, "lib"))
-      FileUtils.mkdir_p(File.join(dir, "spec"))
-      File.write(File.join(dir, "lib", "widget.rb"), "class Widget; def x; 1; end; end\n")
-      File.write(File.join(dir, "spec", "widget_spec.rb"),
-                 "RSpec.describe(Widget) { it('x') { expect(1).to eq(1) } }\n")
-      _, err, status = Open3.capture3(
-        RbConfig.ruby, "-I#{File.join(ROOT, 'lib')}", BIN,
-        "run", "lib/widget.rb", "--daemon", "--boot", "lib/widget.rb",
-        chdir: dir
-      )
-      assert_equal 2, status.exitstatus, err
-      assert_includes err, "supports only --framework minitest"
-    end
+  def test_daemon_accepts_rspec_and_defers_database_validation_until_boot
+    config = Mutineer::Config.resolve({ daemon: true, rails: true, framework: "rspec" }, {})
+    Mutineer::CLI.validate_daemon!(config)
+    assert_equal "reload", config.strategy
   end
 
   # PR #183 review: the daemon never reads the in-process time limits, so a

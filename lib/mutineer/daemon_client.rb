@@ -176,9 +176,12 @@ module Mutineer
       end
       # A parent require must not run in the app, even when Bundler saved it.
       %w[RUBYOPT RUBYLIB].each { |key| env.delete(key) }
-      # No saved original means the value belongs to the tool process.
-      %w[GEM_HOME GEM_PATH BUNDLE_PATH BUNDLE_WITHOUT BUNDLER_VERSION].each do |key|
-        env.delete(key) unless restored.include?(key)
+      # Inside Bundler, an unsaved value belongs to the tool. Standalone
+      # invocation has no saved keys: preserve the caller's application paths.
+      unless restored.empty?
+        %w[GEM_HOME GEM_PATH BUNDLE_PATH BUNDLE_WITHOUT BUNDLER_VERSION].each do |key|
+          env.delete(key) unless restored.include?(key)
+        end
       end
       env
     end

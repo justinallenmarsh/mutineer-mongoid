@@ -2,8 +2,8 @@ name: Release
 
 # Publish is tag-driven: bump Mutineer::VERSION, date the CHANGELOG section, then
 #   git tag vX.Y.Z && git push origin vX.Y.Z
-# This workflow then tests, publishes the gem to RubyGems via Trusted Publishing
-# (OIDC — no API key, no OTP), and cuts the GitHub release from the CHANGELOG.
+# This workflow tests and attaches the gem and checksum to a GitHub release.
+# RubyGems publication is a separate decision and needs its own publisher setup.
 on:
   push:
     # Three-component release tags only: the workflow itself force-pushes the
@@ -12,7 +12,6 @@ on:
 
 permissions:
   contents: write   # create the GitHub release
-  id-token: write   # OIDC token for RubyGems Trusted Publishing
 
 # One release at a time. Two tags in the same major (v1.0.0 then v1.0.1)
 # overlapping would let the older run force-push @v1 backward after the
@@ -24,10 +23,12 @@ concurrency:
 
 jobs:
   release:
-    name: publish gem + github release
+    name: publish gem as a GitHub release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: ruby/setup-ruby@0dafeac902942906541bc140009cdbf32665b601 # v1 — pinned: privileged (id-token) job
         with:
           ruby-version: "3.4"
@@ -52,22 +53,25 @@ jobs:
             exit 1
           fi
 
+      - name: Guard release ancestry
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --no-prune origin refs/heads/main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" FETCH_HEAD; then
+            echo "::error::The release commit is not on main."
+            exit 1
+          fi
+
       - name: Tests
         run: bundle exec rake test
       - name: Pages site builds
         run: bundle exec rake site:build
 
-      # Exchanges the workflow's OIDC token for short-lived RubyGems credentials.
-      # Requires a one-time Trusted Publisher entry on rubygems.org for this repo
-      # + workflow (see the release runbook). No secret, no OTP.
-      - name: Configure RubyGems Trusted Publishing (OIDC)
-        uses: rubygems/configure-rubygems-credentials@dc5a8d8553e6ee01fc26761a49e99e733d17954a # v2.1.0
-
-      - name: Build & push gem
+      - name: Build gem and checksum
         run: |
           set -euo pipefail
           gem build mutineer.gemspec
-          gem push mutineer-*.gem
+          sha256sum mutineer-gaia-*.gem > SHA256SUMS
 
       - name: GitHub release from CHANGELOG
         env:
@@ -77,13 +81,22 @@ jobs:
           ver="${GITHUB_REF_NAME#v}"
           awk -v ver="$ver" '$0 ~ "^## \\["ver"\\]"{f=1;next} /^## \[/{f=0} f' CHANGELOG.md > notes.md
           if [ ! -s notes.md ]; then printf 'Release %s\n' "$GITHUB_REF_NAME" > notes.md; fi
-          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md
+          gh release create "$GITHUB_REF_NAME" mutineer-gaia-*.gem SHA256SUMS --title "$GITHUB_REF_NAME" --notes-file notes.md
 
       # Keep the floating major tag (v1, v2, ...) on the newest release in its
-      # line, so `uses: davidteren/mutineer@v1` tracks the latest v1.x.y.
+      # line, so `uses: justinallenmarsh/mutineer-gaia@v1` tracks the latest v1.x.y.
       - name: Move floating major tag
         run: |
           set -euo pipefail
           major="${GITHUB_REF_NAME%%.*}"
+          current="$(git ls-remote --tags origin "refs/tags/$major" | awk '{print $1}')"
+          if [ -n "$current" ]; then
+            git fetch --no-tags origin "$current"
+            current_version="$(git show "$current:lib/mutineer/version.rb" | ruby -e 'value = STDIN.read[/VERSION\s*=\s*"([^"]+)"/, 1]; abort "Cannot read current major-tag version" unless value; print value')"
+            if ruby -rrubygems -e 'exit(Gem::Version.new(ARGV[0]) > Gem::Version.new(ARGV[1]) ? 0 : 1)' "$current_version" "${GITHUB_REF_NAME#v}"; then
+              echo "::notice::Keeping the newer $major release ($current_version)."
+              exit 0
+            fi
+          fi
           git tag -f "$major" "$GITHUB_REF_NAME"
-          git push -f origin "$major"
+          git push "--force-with-lease=refs/tags/$major:$current" origin "refs/tags/$major"

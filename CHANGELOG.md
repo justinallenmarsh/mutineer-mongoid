@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.7.0] - 2026-10-15
+
+- Add Mongoid 9 / RSpec daemon execution with a disposable database per child.
+- Preserve boot-time documents and indexes, and clean databases after timeouts.
+- Package the fork as `mutineer-gaia`, retaining the existing executable.
+- Ship a composite GitHub action with a daemon input and a bundled-source installer.
+- Attach the gem and checksum to GitHub releases.
+
 ## [Unreleased]
 
 ## [1.6.0] - 2026-10-08
