@@ -2,8 +2,8 @@ name: Release
 
 # Publish is tag-driven: bump Mutineer::VERSION, date the CHANGELOG section, then
 #   git tag vX.Y.Z && git push origin vX.Y.Z
-# This workflow tests and attaches the gem and checksum to a GitHub release.
-# RubyGems publication is a separate decision and needs its own publisher setup.
+# This workflow tests and attaches the gem and checksum to a GitHub release,
+# then publishes the same artifact to RubyGems through Trusted Publishing.
 on:
   push:
     # Three-component release tags only: the workflow itself force-pushes the
@@ -100,3 +100,12 @@ jobs:
           fi
           git tag -f "$major" "$GITHUB_REF_NAME"
           git push "--force-with-lease=refs/tags/$major:$current" origin "refs/tags/$major"
+
+  rubygems:
+    needs: release
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/rubygems.yml
+    with:
+      tag: ${{ github.ref_name }}

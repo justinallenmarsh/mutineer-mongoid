@@ -219,12 +219,15 @@ class ReleaseWorkflowTest < Minitest::Test
     end
   end
 
-  def test_release_attaches_the_gem_and_checksum_without_publishing_to_rubygems
+  def test_release_attaches_the_gem_and_checksum_before_publishing_to_rubygems
     workflow = File.read(RELEASE_WORKFLOW)
     assert_includes workflow, "sha256sum mutineer-mongoid-*.gem > SHA256SUMS"
     assert_includes workflow, 'gh release create "$GITHUB_REF_NAME" mutineer-mongoid-*.gem SHA256SUMS'
     refute_includes workflow, "gem push"
     refute_includes workflow, "configure-rubygems-credentials"
+    publisher = YAML.load_file(RELEASE_WORKFLOW).dig("jobs", "rubygems")
+    assert_equal "release", publisher.fetch("needs")
+    assert_equal "./.github/workflows/rubygems.yml", publisher.fetch("uses")
   end
 
   private

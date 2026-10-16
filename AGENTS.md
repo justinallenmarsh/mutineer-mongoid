@@ -88,11 +88,13 @@ pull request changes, update the ones above it and review the new lines.
 
 ## Releasing (tag-driven — CI publishes, no manual `gem push`)
 
-**Fork override:** `justinallenmarsh/mutineer-mongoid` publishes the built gem and
-checksum as GitHub release attachments. It does not publish to RubyGems. The
-upstream RubyGems runbook below is retained as reference and does not apply to
-this fork. Its release workflow validates stable tags and moves the action's
-major tag after creating the GitHub release.
+**Fork release:** `justinallenmarsh/mutineer-mongoid` builds and tests each
+stable tag, attaches the gem and checksum to a GitHub release, then calls
+`rubygems.yml` to publish that exact artifact through Trusted Publishing.
+The publisher uses the GitHub `release` environment. To publish an existing
+GitHub release (including the first RubyGems release), dispatch `rubygems.yml`
+on `main` with its stable tag. Existing RubyGems versions are accepted only
+when their SHA-256 matches the GitHub artifact.
 
 Semver: **new feature → minor bump, fix → patch.** A behavior change to the
 GitHub Action's defaults is a **major** bump: consumers pin `@v<major>`, and a
@@ -142,8 +144,9 @@ Safety nets:
   `gh workflow enable release-pr.yml`.
 
 **One-time setup (required for the publish to work):** register a Trusted Publisher
-on <https://rubygems.org/gems/mutineer> → owner `davidteren`, repo `mutineer`,
-workflow `release.yml`, no environment. Without it, `release.yml`'s `gem push` fails.
+for `mutineer-mongoid` → owner `justinallenmarsh`, repo `mutineer-mongoid`,
+workflow `rubygems.yml`, environment `release`. For a new gem, register a pending
+trusted publisher under your RubyGems profile. No API key is stored in GitHub.
 
 ## Score-model discipline (don't regress this)
 

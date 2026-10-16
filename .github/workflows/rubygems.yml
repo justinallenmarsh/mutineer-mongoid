@@ -1,0 +1,97 @@
+name: Publish to RubyGems
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing stable GitHub release tag to publish
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rubygems-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'justinallenmarsh/mutineer-mongoid' && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - name: Validate release tag
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ruby/setup-ruby@0dafeac902942906541bc140009cdbf32665b601
+        with:
+          ruby-version: "3.4"
+
+      - name: Validate release ancestry and version
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --no-prune origin refs/heads/main
+          git merge-base --is-ancestor HEAD FETCH_HEAD
+          ruby -r ./lib/mutineer/version -e 'abort "Tag/version mismatch" unless ENV.fetch("RELEASE_TAG") == "v#{Mutineer::VERSION}"'
+
+      - name: Download the published GitHub release artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir dist
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern "mutineer-mongoid-${RELEASE_TAG#v}.gem" --pattern SHA256SUMS --dir dist
+
+      - name: Verify release artifact
+        run: |
+          set -euo pipefail
+          ruby -rrubygems/package -rdigest -e '
+            version = ENV.fetch("RELEASE_TAG").delete_prefix("v")
+            filename = "mutineer-mongoid-#{version}.gem"
+            package = "dist/#{filename}"
+            expected = "#{Digest::SHA256.file(package).hexdigest}  #{filename}\n"
+            abort "Release checksum mismatch" unless File.read("dist/SHA256SUMS") == expected
+            spec = Gem::Package.new(package).spec
+            abort "Release gem name/version mismatch" unless spec.name == "mutineer-mongoid" && spec.version.to_s == version
+          '
+
+      - name: Check whether this exact gem is already published
+        id: published
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          status="$(curl --silent --show-error --output published.json --write-out '%{http_code}' "https://rubygems.org/api/v2/rubygems/mutineer-mongoid/versions/$version.json")"
+          case "$status" in
+            404) echo "push=true" >> "$GITHUB_OUTPUT" ;;
+            200)
+              ruby -rjson -rdigest -e 'version = ENV.fetch("RELEASE_TAG").delete_prefix("v"); abort "RubyGems already contains a different artifact" unless JSON.parse(File.read("published.json")).fetch("sha") == Digest::SHA256.file("dist/mutineer-mongoid-#{version}.gem").hexdigest'
+              echo "push=false" >> "$GITHUB_OUTPUT"
+              ;;
+            *) echo "::error::RubyGems lookup failed (HTTP $status)"; exit 1 ;;
+          esac
+
+      - name: Authenticate with RubyGems Trusted Publishing
+        if: steps.published.outputs.push == 'true'
+        uses: rubygems/configure-rubygems-credentials@f5a32efa94076b80b28556b2d3b04cb3707b6df1
+      - name: Publish the verified gem
+        if: steps.published.outputs.push == 'true'
+        run: gem push "dist/mutineer-mongoid-${RELEASE_TAG#v}.gem" --host https://rubygems.org
