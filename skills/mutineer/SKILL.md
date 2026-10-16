@@ -15,11 +15,11 @@ Use this fork in the application's Gemfile in place of `mutineer` or
 `mutineer-gaia` (they share the executable and namespace):
 
 ```ruby
-gem "mutineer-mongoid", git: "https://github.com/justinallenmarsh/mutineer-mongoid.git", tag: "v2.0.0", require: false
+gem "mutineer-mongoid", "~> 2.0", require: false
 ```
 
 Run `bundle install`, then invoke it with `bundle exec mutineer`. The gem is
-published as a GitHub release asset, not on RubyGems. This fork retains upstream
+published on RubyGems with matching GitHub release assets. This fork retains upstream
 Minitest/SQLite behavior and adds Mongoid 9/RSpec daemon isolation. For Mongoid,
 use `--rails --daemon --jobs 2`; see the fork README for its supported scope.
 `--matrix` requires serial in-process execution.

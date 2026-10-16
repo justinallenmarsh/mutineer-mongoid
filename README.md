@@ -45,16 +45,18 @@ Use this gem in place of `mutineer` or `mutineer-gaia`; install only one of them
 because they provide the same `mutineer` executable and Ruby namespace:
 
 ```ruby
-gem "mutineer-mongoid", git: "https://github.com/justinallenmarsh/mutineer-mongoid.git", tag: "v2.0.0", require: false
+gem "mutineer-mongoid", "~> 2.0", require: false
 ```
 
 ```sh
 bundle exec mutineer run app/models/example.rb --rails --daemon --jobs 2
 ```
 
-The gem is available as an attachment on the [GitHub release](https://github.com/justinallenmarsh/mutineer-mongoid/releases/tag/v2.0.0).
-It has not been published to RubyGems. The GitHub action builds and installs the
-source at the action ref, so it needs no separate gem publication:
+Install from [RubyGems](https://rubygems.org/gems/mutineer-mongoid) using Bundler,
+or run `gem install mutineer-mongoid` for the standalone command. The identical
+gem and checksum are attached to the [GitHub release](https://github.com/justinallenmarsh/mutineer-mongoid/releases/tag/v2.0.0).
+
+The GitHub action builds and installs the source at its pinned action ref:
 
 ```yaml
 - uses: actions/checkout@v7
@@ -239,7 +241,7 @@ to get a verdict.
 Add Mutineer to your Gemfile's test group:
 
 ```ruby
-gem "mutineer-mongoid", git: "https://github.com/justinallenmarsh/mutineer-mongoid.git", tag: "v2.0.0", group: :test, require: false
+gem "mutineer-mongoid", "~> 2.0", group: :test, require: false
 ```
 
 ### Faster, parallel-safe Rails (the `--daemon` backend)

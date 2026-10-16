@@ -107,41 +107,17 @@ default flip must never reach them without opting in.
    ```sh
    git tag vX.Y.Z && git push origin vX.Y.Z
    ```
-4. `.github/workflows/release.yml` then: guards `tag == Mutineer::VERSION`, runs
-   tests, publishes to RubyGems via **Trusted Publishing** (OIDC — no API key, no
-   OTP), cuts the GitHub release from the CHANGELOG section, and force-moves the
-   floating major tag (`v1`, `v2`, …) to the release so `uses: …@v<major>`
-   consumers track the latest in that line.
+4. `.github/workflows/release.yml` guards `tag == Mutineer::VERSION`, runs tests,
+   cuts the GitHub release from CHANGELOG, and moves the floating major tag
+   (`v1`, `v2`, …). Its `rubygems` job then calls `rubygems.yml` to publish the
+   verified release artifact through **Trusted Publishing** (OIDC, no API key).
 
 Safety nets:
-- The **tag must equal `Mutineer::VERSION`** or the release aborts.
-- **Releases are batched, not cut per merge.** `.github/workflows/release-pr.yml` runs
-  weekly (Monday 08:00 UTC) and on demand (`gh workflow run release-pr.yml`). When
-  `feat:`/`fix:` commits sit on `main` past the latest tag, it opens a release PR (bumps
-  `version.rb`, dates the CHANGELOG + adds its reference-link def). Each run rebuilds that
-  PR from the current `main`, so it always covers every change since the last tag; a
-  newer version supersedes an older open release PR, and when `main` moved the same
-  version is re-opened fresh (the old branch is deleted under a lease, never
-  force-pushed). The run never replaces a release branch that holds someone else's
-  commits, or that has a PR it did not open (it leaves that branch alone with a
-  warning), and it never closes a release PR it did not open. A merge commit counts as
-  someone else's commit: GitHub's "Update branch" button on the release PR pauses the
-  automation until that PR is merged or its branch is deleted. Review + merge it, then push the
-  `vX.Y.Z` tag. Every release moves the floating major tag (`v1` today), so Action users get it at once:
-  batch changes rather than releasing after each merge. CI runs on that auto-PR with no
-  secret: a push by the default `GITHUB_TOKEN` starts no other workflow, so after
-  pushing the release branch the job dispatches `ci.yml` on it, and those runs report
-  the required checks on the PR's head commit. With an optional `RELEASE_PR_TOKEN` PAT
-  secret, the push triggers CI itself and the dispatch is skipped. If the checks are
-  missing, run `gh workflow run ci.yml --ref release/vX.Y.Z`.
-- **The release-PR run stops (and opens nothing) in two cases.** If `VERSION` on `main`
-  differs from the latest tag, a bump is merged but not tagged: it warns you to push
-  that tag first. If the computed `vX.Y.Z` tag already exists on origin (for example
-  pushed from a branch), it fails and you resolve it by hand.
-- **GitHub disables scheduled workflows in a public repo after 60 days without
-  activity.** If no release PR appears on a Monday while unreleased `feat:`/`fix:`
-  work sits on `main`, check `gh workflow view release-pr.yml` and re-enable it with
-  `gh workflow enable release-pr.yml`.
+- The tag must equal `Mutineer::VERSION` or the release aborts.
+- RubyGems publication verifies the release artifact's checksum, name, and version.
+- An already published version is accepted only when its checksum matches.
+- `release-pr.yml` is upstream-only and disabled in this fork. Cut release tags
+  manually after the version change and required checks are on `main`.
 
 **One-time setup (required for the publish to work):** register a Trusted Publisher
 for `mutineer-mongoid` → owner `justinallenmarsh`, repo `mutineer-mongoid`,
