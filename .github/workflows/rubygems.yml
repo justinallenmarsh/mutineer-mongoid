@@ -91,7 +91,7 @@ jobs:
 
       - name: Authenticate with RubyGems Trusted Publishing
         if: steps.published.outputs.push == 'true'
-        uses: rubygems/configure-rubygems-credentials@f5a32efa94076b80b28556b2d3b04cb3707b6df1
+        uses: rubygems/configure-rubygems-credentials@a3462e5c07dc676007e359eddef1949756fd3102
       - name: Publish the verified gem
         if: steps.published.outputs.push == 'true'
         run: gem push "dist/mutineer-mongoid-${RELEASE_TAG#v}.gem" --host https://rubygems.org
